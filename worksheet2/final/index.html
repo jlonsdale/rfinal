@@ -1,0 +1,466 @@
+<!-- HTML5 doctype declaration -->
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <script type="text/javascript" src="script.js"></script>
+    <script id="wgsl" type="x-shader">
+
+
+        //////////////////////
+        // Camera Constants //
+        //////////////////////
+
+        const lookAtPoint:vec3<f32> = vec3f(0.0, 0.5, 0.0); // '𝐩' in notes
+        const eyePoint:vec3<f32> = vec3f(2.0,1.5,2.0); // '𝐞' in notes
+        const upVector:vec3<f32> = vec3f(0.0,1.0,0.0); // 'u' in notes
+        const DEBUG_RED =  vec4f(1.0,0.0,0.0,1.0);
+
+        /////////////////////
+        // Scene Constants //
+        /////////////////////
+
+        const lightPos = vec3f(0.0,1.0,0.0);
+
+        struct Uniforms {
+          r_sphere: f32,
+          g_sphere: f32,
+          b_sphere: f32,
+          s: f32,
+          intensity: f32,
+          p: f32,
+          ri: f32
+        };
+
+        struct VSOut {
+          @builtin(position) position: vec4f,
+          @location(0) coords : vec2f,
+        };
+
+        @group(0) @binding(0) var<uniform> uniforms : Uniforms;
+
+        @vertex
+        fn main_vs(@builtin(vertex_index) VertexIndex : u32) -> VSOut
+        {
+          const pos = array<vec2f, 4>(vec2f(-1.0, 1.0), vec2f(-1.0, -1.0), vec2f(1.0, 1.0), vec2f(1.0, -1.0));
+          var vsOut: VSOut;
+          vsOut.position = vec4f(pos[VertexIndex], 0.0, 1.0);
+          vsOut.coords = pos[VertexIndex];
+          return vsOut;
+        }
+
+        /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+        struct HitInfo {
+          hasHit: bool,
+          normal: vec3<f32>,
+          point: vec3<f32>,
+          distance: f32,
+          depth: i32,
+          shader: i32,
+          color: vec4<f32>,
+          IOR: f32
+        }
+
+        struct Ray {
+          origin: vec3f,
+          direction: vec3f,
+          tmin: f32,
+          tmax: f32,
+        };
+
+        struct Light {
+          origin: vec3<f32>,
+          intensity: f32
+        }
+
+        struct Sphere {
+          origin: vec3<f32>,
+          radius: f32,
+          color: vec4<f32>,
+        }
+
+        struct Plane {
+          normal: vec3<f32>,
+          point: vec3<f32>,
+          color: vec4<f32>,
+        }
+
+        struct Triangle {
+          v0: vec3<f32>,
+          v1: vec3<f32>,
+          v2: vec3<f32>,
+          color: vec4<f32>,
+        }
+
+        const sceneTiangle1 = Triangle(vec3f(-0.2, 0.1, 0.9), vec3f(0.2, 0.1, 0.9), vec3f(-0.2, 0.1, -0.1), vec4f(0.4, 0.3, 0.2, 1.0));
+        const sceneSphere1:Sphere = Sphere(vec3f(0.0, 0.5, 0.0), 0.3, vec4f(0.5, 0.5, 0.0, 1.0));
+        const scenePlane1:Plane = Plane(vec3f(0.0, 1.0, 0.0), vec3f(0.0, 0.0, 0.0), vec4f(0.1, 0.7, 0.0, 1.0));
+
+        const bgColor:vec4f = vec4f(0.1, 0.3, 0.6, 1.0);
+        const MAX_DEPTH:i32 = 10;
+
+        fn getRay(uv: vec2f) -> Ray {
+
+          var v =  normalize(lookAtPoint-eyePoint);
+          var b1 = normalize(cross(v, upVector));
+          var b2 = (cross(b1, v));
+          var q = normalize(uv.x * b1 + uv.y * b2 + v);
+
+          var ray: Ray;
+          ray.origin = eyePoint;
+          ray.direction = q;
+          ray.tmin = 0.0001;
+          ray.tmax = 1000;
+
+          return ray;
+        }
+
+        fn intersectRayWithSphere(ray: ptr<function, Ray>, hitResult: ptr<function, HitInfo>, sphere: Sphere) -> HitInfo {
+          let sphereCenter = sphere.origin;
+          let sphereRadius = sphere.radius;
+          let rayDirection = (*ray).direction;
+          let rayOrigin = (*ray).origin;
+
+          let sphereToRay = rayOrigin - sphereCenter;
+
+          // Calculate the coefficients for the quadratic equation
+          let a = dot(rayDirection, rayDirection);
+          let b = 2.0 * dot(rayDirection, sphereToRay);
+          let c = dot(sphereToRay, sphereToRay) - (sphereRadius * sphereRadius);
+
+          // Calculate the discriminant
+          let discriminant = b * b - 4.0 * a * c;
+
+          if discriminant < 0.0 {
+              // No intersection
+              return (*hitResult);
+          }
+
+          // Calculate the two possible solutions for t (entry and exit points)
+          let t1 = (-b - sqrt(discriminant)) / (2.0 * a);
+          let t2 = (-b + sqrt(discriminant)) / (2.0 * a);
+          var distanceToHit = t2;
+
+          if((t1 > (*ray).tmin) && (t1 < (*ray).tmax)) {
+            distanceToHit = t1;
+          }
+
+          if((distanceToHit < (*ray).tmin) || (distanceToHit > (*ray).tmax)) {
+            (*hitResult).hasHit = false;
+            return (*hitResult);
+          }
+
+          // At least one intersection point
+          let intersectionPoint = rayOrigin + rayDirection * distanceToHit;
+          let sphereNormal = normalize(intersectionPoint - sphereCenter);
+
+          if(dot(rayDirection, sphereNormal)<0){
+            (*hitResult).IOR = 1/1.5;
+
+
+          }
+          else {
+            (*hitResult).IOR = 1.5;
+          }
+
+          (*hitResult).point = intersectionPoint;
+
+          (*hitResult).normal = sphereNormal;
+          (*ray).tmax = distanceToHit;
+          (*hitResult).hasHit = true;
+          (*hitResult).color = sphere.color;
+          let shader = i32(uniforms.s);
+          (*hitResult).shader = shader;
+          return (*hitResult);
+        }
+
+
+        fn intersectRayWithPlane(ray:ptr<function, Ray>, hitResult: ptr<function, HitInfo>, plane:Plane) -> HitInfo {
+          let rayOrigin = (*ray).origin;
+          let rayDirection = (*ray).direction;
+
+          let distanceToHit = dot(plane.point - rayOrigin, plane.normal) / dot(rayDirection, plane.normal);
+          let intersectionPoint = rayOrigin + distanceToHit * rayDirection;
+
+          if ((distanceToHit < (*ray).tmin) || (distanceToHit > (*ray).tmax ))
+          {
+            return (*hitResult);
+          }
+
+          (*ray).tmax = distanceToHit;
+          (*hitResult).hasHit = true;
+          (*hitResult).point = intersectionPoint;
+          (*hitResult).normal = plane.normal;
+          (*hitResult).color = plane.color;
+          (*hitResult).shader = 1;
+
+          return (*hitResult);
+        }
+
+        fn intersectRayWithTriangle(ray:ptr<function, Ray>, hitResult: ptr<function, HitInfo>, triangle:Triangle) -> HitInfo {
+
+            let origin = (*ray).origin;
+            let direction = (*ray).direction;
+
+            // Find vectors for edges sharing v0
+            let e0 = triangle.v1 - triangle.v0;
+            let e1 = triangle.v2 - triangle.v0;
+
+            // Find face normal
+            let n = cross(e0, e1);
+
+            // Compute ray-plane intersection
+            var q = dot(direction, n);
+
+            if(abs(q) < 1.0e-8f) {
+              return (*hitResult);
+            }
+
+            q = 1.0f/q;
+            let o_to_v0 = triangle.v0 - origin;
+            let distanceToHit = dot(o_to_v0, n)*q;
+
+            let n_tmp = cross(o_to_v0, direction);
+            let beta = dot(n_tmp, e1)*q;
+
+            if(beta < 0.0f) {
+              return (*hitResult);
+            }
+
+            let gamma = -dot(n_tmp, e0)*q;
+
+            if(gamma < 0.0f || beta + gamma > 1.0f) {
+              return (*hitResult);
+            }
+
+            let intersectionPoint = origin + distanceToHit * direction;
+
+            // Check distance to intersection
+            if(distanceToHit > (*ray).tmax || distanceToHit < (*ray).tmin ) {
+              return (*hitResult);
+            }
+
+            // Calculate the normal vector using the cross product of the edges
+            var normalToTriangle = normalize(cross(e0, e1));
+            (*ray).tmax = distanceToHit;
+            (*hitResult).point = intersectionPoint;
+            (*hitResult).color = triangle.color;
+            (*hitResult).hasHit = true;
+            (*hitResult).shader = 1;
+            return (*hitResult);
+          }
+
+        fn lambertian(hitResult: ptr<function, HitInfo>, pointLight:Light) -> vec4f {
+          var lightPos = pointLight.origin;
+          var diffuse = (dot( (*hitResult).normal, normalize( lightPos - (*hitResult).point )));
+          diffuse = clamp( diffuse, 0, 1);
+          (*hitResult).color = ((*hitResult).color*diffuse)*0.9 + (*hitResult).color*0.1;
+          return (*hitResult).color;
+        }
+
+
+        fn mirror(hitResult: ptr<function, HitInfo>,currentRay: Ray, pointLight:Light) -> vec4<f32> {
+          var sphereCenter = sceneSphere1.origin;
+          var normal = normalize((*hitResult).point - sphereCenter);
+
+          var mirrorRay: Ray;
+          mirrorRay.origin = (*hitResult).point + (*hitResult).normal * 0.1;
+          mirrorRay.direction = reflect(currentRay.direction, normal);
+          mirrorRay.tmin = 0.001;
+          mirrorRay.tmax = 1000;
+          (*hitResult).hasHit = false;
+          sceneIntersect(&mirrorRay, hitResult);
+          if ( (*hitResult).hasHit) {
+            lambertian(hitResult, pointLight);
+            return (*hitResult).color;
+          }
+          return bgColor;
+        }
+
+        fn glass(hitResult: ptr<function, HitInfo>,currentRay: Ray, pointLight:Light) -> vec4<f32> {
+          var sphereCenter = sceneSphere1.origin;
+          let highlight = phongSpecular(hitResult, pointLight);
+
+          (*hitResult).hasHit = false;
+          (*hitResult).color=bgColor*1.5;;
+
+          var glassRay: Ray;
+          glassRay.tmax = currentRay.tmax;
+
+          let rd2 = refract(currentRay.direction, (*hitResult).normal, (*hitResult).IOR );
+          glassRay.direction = rd2;
+          let ro2 = (*hitResult).point + rd2*0.001;
+          glassRay.origin = ro2;
+
+          sceneIntersect(&glassRay, hitResult);
+
+          if ((*hitResult).hasHit) {
+            (*hitResult).hasHit = false;
+
+            glassRay.tmax = 1000;
+            let rd3  = refract(rd2, -(*hitResult).normal, (*hitResult).IOR );
+            let ro3 = (*hitResult).point + rd3*0.001;
+
+            glassRay.direction = rd3;
+            glassRay.origin = ro3;
+            sceneIntersect(&glassRay, hitResult);
+
+            if ((*hitResult).hasHit) {
+              lambertian(hitResult, pointLight);
+            }
+            else {
+              (*hitResult).color=bgColor*1.5;
+            }
+          }
+          return (*hitResult).color + highlight*1.5; //reverse the shadow
+        }
+
+        fn phong(hitResult: ptr<function, HitInfo>, pointLight:Light) -> vec4f {
+            let specularShininess = 42.0;
+
+            var lightIntensity = pointLight.intensity;
+            var lightPos = pointLight.origin;
+
+            let vNormal = normalize((*hitResult).normal.xyz);
+            let vPosition = (*hitResult).point;
+            let lightDir = normalize(lightPos - vPosition);
+            let lightMagnitude = dot(vNormal, lightDir);
+
+            let diffuse = max(lightMagnitude, 0)*lightIntensity;
+            let viewDir = normalize(eyePoint - vPosition);
+            let reflectDir = reflect(-lightDir, vNormal);
+            let spec = pow(max(dot(viewDir, reflectDir), 0.0), specularShininess)/0.1;
+            let finalColor = (*hitResult).color*0.1 + (*hitResult).color*diffuse*0.9 + vec4f(1.0)*spec;
+            (*hitResult).color = finalColor;
+            return finalColor;
+        }
+
+        fn phongSpecular(hitResult: ptr<function, HitInfo>, pointLight:Light) -> vec4f {
+          let specularShininess = 42.0;
+
+          var lightIntensity = pointLight.intensity;
+          var lightPos = pointLight.origin;
+
+          let vNormal = normalize((*hitResult).normal.xyz);
+          let vPosition = (*hitResult).point;
+          let lightDir = normalize(lightPos - vPosition);
+          let lightMagnitude = dot(vNormal, lightDir);
+
+          let viewDir = normalize(eyePoint - vPosition);
+          let reflectDir = reflect(-lightDir, vNormal);
+          let spec = pow(max(dot(viewDir, reflectDir), 0.0), specularShininess)/0.1;
+          return vec4f(1.0)*spec;
+      }
+
+        fn shade(hit: ptr<function, HitInfo>, pointLight: Light, currentRay: Ray) -> vec4f
+          {
+          switch (*hit).shader {
+            case 1 {
+              return lambertian(hit, pointLight);
+            }
+            case 2 {
+              return phong(hit, pointLight);
+            }
+            case 3 {
+              return mirror(hit, currentRay, pointLight);
+            }
+            case 4 {
+              return glass(hit, currentRay, pointLight);
+            }
+            case default {
+              return (*hit).color;
+            }
+          }
+        }
+
+        fn sceneIntersect(ray:ptr<function, Ray>, hit:ptr<function, HitInfo>) -> HitInfo
+        {
+          intersectRayWithSphere(ray, hit, sceneSphere1);
+          intersectRayWithPlane(ray, hit, scenePlane1);
+          intersectRayWithTriangle(ray, hit, sceneTiangle1);
+          return (*hit);
+        }
+
+        @fragment
+        fn main_fs(@location(0) coords: vec2f) -> @location(0) vec4f {
+          var pointLight = Light(lightPos, uniforms.intensity);
+
+          let uv = vec2f(coords.x*0.5, coords.y*0.5);
+
+          var ray = getRay(uv);
+          var hitResult: HitInfo;
+          hitResult.hasHit = false;
+
+          var fragColor = vec4f(0.0);
+
+          sceneIntersect(&ray, &hitResult);
+
+          if(hitResult.hasHit) {
+            fragColor = shade(&hitResult, pointLight, ray);
+            var lightDir = normalize(pointLight.origin - hitResult.point);
+            var shadowRay: Ray;
+            shadowRay.origin = hitResult.point + 0.001*lightDir;
+            shadowRay.direction = lightDir;
+            shadowRay.tmax = length(pointLight.origin - hitResult.point);
+            shadowRay.tmin = 0.001;
+            hitResult.hasHit = false;
+            sceneIntersect(&shadowRay, &hitResult);
+            if(hitResult.hasHit) {
+              fragColor = fragColor*0.5;
+            }
+
+          }
+          else {
+            fragColor = bgColor;
+          }
+          return vec4<f32>(fragColor.rgb, 1.0);
+        }
+    </script>
+    <style>
+      label {
+        font-weight: bold;
+      }
+      select,
+      input[type="range"] {
+        width: 150px;
+        background-color: lightgray;
+        margin: 2px;
+      }
+      body {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin: 0;
+        padding-top: 10px;
+      }
+      .container {
+        display: flex;
+        margin: auto;
+      }
+      .textbox {
+        background-color: #cbe7ff; /* Light blue background */
+        border: 2px solid #007bff; /* Blue border */
+        padding: 10px;
+        margin-left: 20px;
+        width: 450px;
+      }
+      h2 {
+        font-size: 24px;
+        color: #007bff; /* Blue text color */
+      }
+
+    </style>
+  </head>
+
+  <body style="font-family: 'Arial', sans-serif">
+    <div class="container">
+      <canvas id="c" height="512px" width="512px"> ruh roh </canvas>
+      <div class="textbox">
+        <h2>Worksheet 2 - Ray Tracing</h2>
+        <label for="materialSelector">Select a material for sphere:</label>
+        <select id="materialSelector"></select
+      </div>
+    </div>
+  </body>
+</html>

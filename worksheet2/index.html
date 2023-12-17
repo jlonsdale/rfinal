@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Worksheet 1 Rendering</title>
+    <style>
+      button {
+        padding: 5px 10px;
+        background-color: #3366cc;
+        color: #fff;
+        border: none;
+        margin: 10px;
+        border-radius: 5px;
+        cursor: pointer;
+      }
+
+      #frame {
+        width: 100vw;
+        height: 100vh;
+        border: none;
+        padding: 10px;
+      }
+
+      .textbox_intro {
+        width: 982px;
+        background-color: #cbe7ff; /* Light blue background */
+        border: 2px solid #007bff; /* Blue border */
+        margin: auto;
+        padding: 5px 10px 20px 10px;
+        text-align: justify;
+      }
+      .textbox_intro h2 {
+        text-align: center;
+        font-size: 24px; /* Adjust the font size as needed */
+        margin: 5px 0; /* Reduce top and bottom margin */
+        padding: 0; /* Remove padding */
+      }
+      .container_intro {
+        display: flex;
+        padding: auto;
+      }
+      label {
+        font-weight: bold;
+        color: #333;
+      }
+
+      select {
+        width: 100%;
+        padding: 5px;
+        margin: 5px 0;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+      }
+
+      select:focus {
+        outline: none;
+        border-color: #2b07de;
+      }
+    </style>
+  </head>
+  <body style="font-family: 'Arial', sans-serif">
+    <h1 style="text-align: center; color: #6699cc">02562 Rendering Fall 23</h1>
+
+    <div style="text-align: center; margin: auto">
+      <button id="goBack">
+        <a href="/" style="text-decoration: none; color: #fff">Homepage 🏠</a>
+      </button>
+
+      <div class="container_intro">
+        <div class="textbox_intro">
+          <h2>Worksheet 2 - Ray Tracing - Introduction</h2>
+          Instead of splitting this worksheet into separate parts, I thought it
+          wise to create one WebGPU program with multiple input fields, allowing
+          for seamless viewing of all textures and materials. During the process
+          of this worksheet, I refactored and rewrote a lot, so it made the most
+          sense to tidy up one final iteration rather than tidying each
+          individual part of the question. The following features will be
+          included:
+          <br />
+          <br />
+
+          • Implement ray tracing.
+          <br />
+          • Render hard shadows by tracing shadow rays to a point light.
+          <br />
+          • Render reflections and refractions by tracing rays recursively.
+          <br />
+          • Compute shading of surfaces using the Phong illumination model.
+        </div>
+      </div>
+
+      <div class="container_intro">
+        <iframe id="frame" src="final/index.html"></iframe>
+      </div>
+    </div>
+  </body>
+</html>

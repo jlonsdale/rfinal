@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <script type="text/javascript" src="script.js"></script>
+    <!-- Define a shader using WGSL in a script tag with the id "wgsl" -->
+    <script id="wgsl" type="x-shader">
+
+      // Vertex shader definition
+
+      @vertex
+      fn main_vs(@builtin(vertex_index) VertexIndex : u32) -> @builtin(position) vec4f
+      {
+        // Define vertex positions for a triangle strip
+        const pos = array<vec2f, 4>(vec2f(-0.9, 0.9), vec2f(-0.9, -0.9), vec2f(0.9, 0.9), vec2f(0.9, -0.9));
+        // Return the vertex position as a vec4 with z=0 and w=1
+        return vec4f(pos[VertexIndex], 0.0, 1.0);
+      }
+
+      // Fragment shader definition
+
+      @fragment
+      fn main_fs() -> @location(0) vec4f
+      {
+        // Return a color as a vec4 (r, g, b, a)
+        return vec4f(0.1, 0.3, 0.6, 1.0); // Blueish color
+      }
+    </script>
+    <style>
+      .container {
+        display: flex;
+        margin: auto;
+      }
+      .textbox {
+        background-color: #cbe7ff; /* Light blue background */
+        border: 2px solid #007bff; /* Blue border */
+        padding: 10px;
+        margin-left: 20px;
+        width: 450px;
+      }
+      h2 {
+        font-size: 24px;
+        color: #007bff; /* Blue text color */
+      }
+      body {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin: 0;
+        padding-top: 20px;
+      }
+    </style>
+  </head>
+
+  <body style="font-family: 'Arial', sans-serif">
+    <div class="container">
+      <canvas id="c" height="512" width="512"> ruh roh </canvas>
+      <div class="textbox">
+        <h2>Part 2 - Setup a basic WebGPU application.</h2>
+        <p>
+          • Define a rectangle from (−0.9,−0.9) to (0.9,0.9) and set its colour
+          to (r,g,b,a) = (0.1,0.3,0.6,1.0).
+          <br />
+          • create a shader module and a render pipeline. Set up a render pass
+          that draws the four vertices of the rectangle as a triangle strip.
+          <br />
+        </p>
+      </div>
+    </div>
+  </body>
+</html>

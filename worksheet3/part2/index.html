@@ -1,0 +1,220 @@
+<!-- HTML5 doctype declaration -->
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <!-- Include an external JavaScript file (script.js) -->
+    <script type="text/javascript" src="script.js"></script>
+
+    <!-- Define a shader using WGSL in a script tag with the id "wgsl" -->
+    <script id="wgsl" type="x-shader">
+
+      struct HitInfo {
+        hasHit: bool,
+        normal: vec3<f32>,
+        point: vec3<f32>,
+        texCoords: vec2<f32>,
+        color: vec4<f32>,
+        useTexture: bool
+      }
+
+      struct Ray {
+        origin: vec3f,
+        direction: vec3f,
+        tmin: f32,
+        tmax: f32,
+      };
+
+      struct Light {
+        origin: vec3<f32>,
+        intensity: f32
+      }
+
+      struct Sphere {
+        origin: vec3<f32>,
+        radius: f32,
+        color: vec4<f32>,
+      }
+
+      struct Plane {
+        normal: vec3<f32>,
+        point: vec3<f32>,
+        color: vec4<f32>,
+      }
+
+      @group(0) @binding(0) var my_sampler: sampler;
+      @group(0) @binding(1) var my_texture: texture_2d<f32>;
+      @group(0) @binding(0) var<uniform> uniforms : Uniforms;
+
+      struct VSOut {
+        @builtin(position) position: vec4f,
+        @location(0) coords : vec2f,
+      };
+
+      struct Uniforms {
+        aspect: f32,
+        cam_const: f32,
+      };
+
+      ///////////////
+      // Constants //
+      ///////////////
+
+      const lookAtPoint:vec3<f32> = vec3f(0.0, 0.5, 0.0); // '𝐩' in notes
+      const eyePoint:vec3<f32> = vec3f(2.5,2.5,2.0); // '𝐞' in notes
+      const upVector:vec3<f32> = vec3f(0.0,1.0,0.0); // 'u' in notes
+      const DEBUG_RED =  vec4f(1.0,0.0,0.0,1.0);
+      const bgColor:vec4f = vec4f(0.1, 0.3, 0.6, 1.0);
+
+      fn getRay(uv: vec2f) -> Ray {
+        var v =  normalize(lookAtPoint-eyePoint);
+        var b1 = normalize(cross(v, upVector));
+        var b2 = (cross(b1, v));
+        var q = normalize(uv.x * b1 + uv.y * b2 + v);
+        var ray: Ray;
+        ray.origin = eyePoint;
+        ray.direction = q;
+        ray.tmin = 0.0001;
+        ray.tmax = 1000;
+        return ray;
+      }
+
+      fn intersectRayWithPlane(ray:ptr<function, Ray>, hitResult: ptr<function, HitInfo>, ) -> HitInfo {
+        let plane:Plane = Plane(vec3f(0.0, 1.0, 0.0), vec3f(0.0, 0.0, 0.0), vec4f(0.1, 0.7, 0.0, 1.0));
+
+        let rayOrigin = (*ray).origin;
+        let rayDirection = (*ray).direction;
+
+        let distanceToHit = dot(plane.point - rayOrigin, plane.normal) / dot(rayDirection, plane.normal);
+        let intersectionPoint = rayOrigin + distanceToHit * rayDirection;
+        (*hitResult).texCoords = vec2f(intersectionPoint.x, intersectionPoint.z)*0.2;
+
+        if (intersectionPoint.x >= -2.0 && intersectionPoint.x <= 2.0 && intersectionPoint.z >= -2.0 && intersectionPoint.z <= 2.0) {
+        (*ray).tmax = distanceToHit;
+        (*hitResult).hasHit = true;
+        (*hitResult).point = intersectionPoint;
+        (*hitResult).normal = plane.normal;
+        (*hitResult).color = plane.color;
+        (*hitResult).useTexture = true;
+        }
+        return (*hitResult);
+      }
+
+
+      @vertex
+      fn main_vs(@builtin(vertex_index) VertexIndex : u32) -> VSOut
+      {
+        const pos = array<vec2f, 4>(vec2f(-1.0, 1.0), vec2f(-1.0, -1.0), vec2f(1.0, 1.0), vec2f(1.0, -1.0));
+        var vsOut: VSOut;
+        vsOut.position = vec4f(pos[VertexIndex], 0.0, 1.0);
+        vsOut.coords = pos[VertexIndex];
+        return vsOut;
+      }
+
+      @fragment
+      fn main_fs(@location(0) coords: vec2f) -> @location(0) vec4f {
+        let uv = vec2f(coords.x*0.5, coords.y*0.5);
+        var ray = getRay(uv);
+        var hitResult: HitInfo;
+        hitResult.hasHit = false;
+        var fragColor = vec4f(0.0);
+
+        intersectRayWithPlane(&ray, &hitResult);
+        var texColor = textureSample(my_texture, my_sampler, hitResult.texCoords);
+
+        if(hitResult.hasHit) {
+          if(hitResult.useTexture) {
+            fragColor = texColor;
+          }
+          else {
+            fragColor = hitResult.color;
+          }
+        }
+        else {
+          fragColor = bgColor;
+        }
+
+        return vec4<f32>(fragColor.rgb, 1.0);
+      }
+    </script>
+    <style>
+      .container {
+        display: flex;
+        margin: auto;
+      }
+      .textbox {
+        background-color: #cbe7ff; /* Light blue background */
+        border: 2px solid #007bff; /* Blue border */
+        padding: 10px;
+        margin-left: 20px;
+        width: 450px;
+      }
+      h2 {
+        font-size: 24px;
+        color: #007bff; /* Blue text color */
+      }
+      body {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin: 0;
+        padding-top: 20px;
+      }
+      label {
+        font-weight: bold;
+        color: #333;
+      }
+
+      select {
+        width: 100%;
+        padding: 5px;
+        margin: 5px 0;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+      }
+
+      select:focus {
+        outline: none;
+        border-color: #2b07de;
+      }
+    </style>
+  </head>
+
+  <body style="font-family: 'Arial', sans-serif">
+    <div class="container">
+      <canvas id="c" height="512" width="512"> ruh roh </canvas>
+      <div class="textbox">
+        <h2>Part 2 - Texture Mapping.</h2>
+        <p>
+          • Add texture coordinates <b>texCoords</b> field and a Boolean field
+          <b>useTexture</b> to indicate whether texturing should be applied.
+          When finding an intersection with a plane..
+          <br />
+          <br />
+          • Scale the resulting texture coordinates by a factor of 0.2
+          <br />
+          <br />
+          • After tracing a path, multiply the sum of textured shader results by
+          the color in the texture sampled at the texture coordinates stored in
+          'hit.texcoords'.
+        </p>
+        <div>
+          <label for="wrapMode">Texture Wrapping Mode:</label>
+          <select id="wrapMode">
+            <option value="repeat">Repeat</option>
+            <option value="clamp-to-edge">Clamp to Edge</option>
+          </select>
+        </div>
+        <div>
+          <label for="filterMode">Texture Filtering Mode:</label>
+          <select id="filterMode">
+            <option value="nearest">Nearest</option>
+            <option value="linear">Linear</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <img id="tex" src="../grass.jpg" hidden="" />
+    <canvas id="texcanvas" style="display: none"></canvas>
+  </body>
+</html>

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Worksheet 3 Rendering</title>
+    <style>
+      button {
+        padding: 5px 10px;
+        background-color: #3366cc;
+        color: #fff;
+        border: none;
+        margin: 5px;
+        border-radius: 5px;
+        cursor: pointer;
+      }
+
+      #frame {
+        width: 100vw;
+        height: 100vh;
+        border: none;
+        padding: auto;
+      }
+    </style>
+  </head>
+  <body style="font-family: 'Arial', sans-serif">
+    <h1 style="text-align: center; color: #6699cc; margin-top: 20px">
+      02562 Rendering Fall 23
+    </h1>
+    <div style="text-align: center; margin-top: 20px">
+      <button id="prevButton">⬅️ Previous Part</button>
+      <button id="nextButton">Next Part ➡️</button>
+      <button id="goBack">
+        <a href="/" style="text-decoration: none; color: #fff">Homepage 🏠</a>
+      </button>
+      <iframe id="frame" src="part1/index.html"></iframe>
+
+      <script>
+        let currentPage = 1;
+        const totalPages = 3;
+
+        const updateFrameSource = () => {
+          const frame = document.getElementById("frame");
+          frame.src = `part${currentPage}/index.html`;
+        };
+
+        document.getElementById("nextButton").addEventListener("click", () => {
+          currentPage = (currentPage % totalPages) + 1;
+          updateFrameSource();
+        });
+
+        document.getElementById("prevButton").addEventListener("click", () => {
+          currentPage = currentPage === 1 ? totalPages : currentPage - 1;
+          updateFrameSource();
+        });
+      </script>
+    </div>
+  </body>
+</html>

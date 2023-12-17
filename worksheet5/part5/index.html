@@ -1,0 +1,319 @@
+<!-- HTML5 doctype declaration -->
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <script type="text/javascript" src="script.js"></script>
+    <script type="text/javascript" src="../OBJParser.js"></script>
+
+    <!-- Define a shader using WGSL in a script tag with the id "wgsl" -->
+    <script id="wgsl" type="x-shader">
+       @group(0) @binding(0) var<storage, read> points: array<vec3<f32>>;
+       @group(0) @binding(1) var<storage, read> indices: array<vec3<u32>>;
+       @group(0) @binding(2) var<storage, read> normals: array<vec3<f32>>;
+       @group(0) @binding(3) var<storage, read> matIndices: array<u32>;
+
+       struct VSOut {
+         @builtin(position) position: vec4f,
+         @location(0) coords : vec2f,
+       };
+
+       @vertex
+       fn main_vs(@builtin(vertex_index) VertexIndex : u32) -> VSOut
+       {
+         const pos = array<vec2f, 4>(vec2f(-1.0, 1.0), vec2f(-1.0, -1.0), vec2f(1.0, 1.0), vec2f(1.0, -1.0));
+         var vsOut: VSOut;
+         vsOut.position = vec4f(pos[VertexIndex], 0.0, 1.0);
+         vsOut.coords = pos[VertexIndex];
+         return vsOut;
+       }
+
+       const TMAX = 1e30;
+       const TMIN = 0.0001;
+       const CAMERA_CONSTANT = 1.0;
+       const ASPECT_RATIO =  1.0;
+
+       const lookAtPoint: vec3<f32> = vec3f(277.0, 275.0, 0.0);
+       const eyePoint: vec3<f32> = vec3f(277.0, 275.0, -570.0);
+       const upVector: vec3<f32> = vec3f(0.0, 1.0, 0.0);
+       const lightPos = vec3f(278.0, 548.7, 279.5);
+
+       const DEBUG_RED =  vec3f(1.0,0.0,0.0);
+       const bgcolor = vec3f(0.1, 0.3, 0.6);
+
+       struct Ray {
+         origin: vec3f,
+         direction: vec3f,
+         tmin: f32,
+         tmax: f32,
+       };
+
+       struct HitInfo {
+         has_hit: bool,
+         normal: vec3<f32>,
+         position: vec3<f32>,
+         distance: f32,
+         ka: vec3f,
+         kd: vec3f,
+         ks: vec3f,
+       }
+
+       struct Triangle {
+         A: vec3f,
+         B: vec3f,
+         C: vec3f,
+         normA: vec3f,
+         normB: vec3f,
+         normC: vec3f,
+       }
+
+
+       struct Material {
+         ka: vec3f,
+         kd: vec3f,
+         ks: vec3f,
+         illum: bool,
+       }
+
+       const redMaterial: Material = Material(vec3f(0.0, 0.0, 0.0), vec3f(0.9, 0.0, 0.0), vec3f(0.0, 0.0, 0.0), false);
+       const greenMaterial: Material = Material(vec3f(0.0, 0.0, 0.0), vec3f(0.0, 0.9, 0.0), vec3f(0.0, 0.0, 0.0), false);
+       const whiteMaterial: Material = Material(vec3f(0.0, 0.0, 0.0), vec3f(0.9, 0.9, 0.9), vec3f(0.0, 0.0, 0.0), false);
+       const lightMaterial: Material = Material(vec3f(27.6, 23.4, 12.0), vec3f(0.0, 0.0, 0.0), vec3f(0.0, 0.0, 0.0), true);
+
+       fn get_camera_ray(uv: vec2f) -> Ray {
+
+         var adjusted_eye = eyePoint * CAMERA_CONSTANT;
+         var v =  normalize(lookAtPoint-adjusted_eye);
+         var b1 = normalize(cross(v, upVector));
+         var b2 = (cross(b1, v));
+         var q = normalize(uv.x * b1 + uv.y * b2 + v);
+
+         var ray: Ray;
+         ray.origin = adjusted_eye;
+         ray.direction = q;
+         ray.tmin = TMIN;
+         ray.tmax = TMAX;
+
+         return ray;
+       }
+
+
+       fn getTriangleNormal(triangle: Triangle, intersectionPoint: vec3f) -> vec3f {
+         var vectorA = triangle.A - intersectionPoint;
+         var vectorB = triangle.B - intersectionPoint;
+         var vectorC = triangle.C - intersectionPoint;
+         var a0 = length(cross(triangle.A - triangle.B, triangle.A - triangle.C));
+         var a1 = length(cross(vectorB, vectorC)) / a0;
+         var a2 = length(cross(vectorC, vectorA)) / a0;
+         var a3 = length(cross(vectorA, vectorB)) / a0;
+         var normal = normalize(triangle.normA*a1 + triangle.normB*a2 + triangle.normC*a3);
+         return normal;
+        }
+
+        fn getTriangleArea(triangle: Triangle) -> f32 {
+         var edgeAB = triangle.B - triangle.A;
+         var edgeAC = triangle.C - triangle.A;
+         var area = length(cross(edgeAB, edgeAC)) / 2.0;
+         return area;
+      }
+
+       fn intersect_triangle(r: ptr<function, Ray>, hit : ptr<function, HitInfo>, triangle: Triangle, ka: vec3f, ks: vec3f, kd: vec3f) -> bool {
+         var origin = (*r).origin;
+         var direction = (*r).direction;
+
+         var e0 = triangle.B - triangle.A;
+         var e1 = triangle.C - triangle.A;
+
+         // Find face normal
+         var n = cross(e0, e1);
+
+         // Compute ray-plane intersection
+         var q = dot(direction, n);
+
+         if(abs(q) < 1.0e-8f) {
+           return false;
+         }
+
+         q = 1.0f/q;
+         var o_to_v0 = triangle.A - origin;
+         var t = dot(o_to_v0, n)*q;
+
+         if(t > (*r).tmax) {
+           return false;
+         }
+         if(t < (*r).tmin) {
+           return false;
+         }
+
+
+         var n_tmp = cross(o_to_v0, direction);
+         var beta = dot(n_tmp, e1)*q;
+
+         if(beta < 0.0f) {
+           return false;
+         }
+
+         var gamma = -dot(n_tmp, e0)*q;
+
+         if(gamma < 0.0f || beta + gamma > 1.0f) {
+           return false;
+         }
+
+         var intersectionPoint = origin + t * direction;
+         var normalToTriangle = getTriangleNormal(triangle, intersectionPoint);
+
+         (*r).tmax = t;
+         (*hit).normal =normalToTriangle;
+         (*hit).distance =t;
+         (*hit).position = intersectionPoint;
+         (*hit).has_hit = true;
+         (*hit).ka = ka;
+         (*hit).ks = ks;
+         (*hit).kd = kd;
+
+         return true;
+       }
+
+       fn intersect_with_obj(ray: ptr<function, Ray>, hit : ptr<function, HitInfo>) -> HitInfo {
+
+         var index: vec3<u32>;
+         var materialLists = array<Material, 4>(
+             whiteMaterial,
+             lightMaterial,
+             greenMaterial,
+             redMaterial
+         );
+
+         for (var t:i32=0; t<36; t=t+1) {
+           index = indices[u32(t)];
+           var triangle = Triangle(points[index.x], points[index.y], points[index.z], normals[index.x], normals[index.y], normals[index.z]);
+           var currentMatIndex = matIndices[u32(t)];
+           var currentMat = materialLists[currentMatIndex];
+           intersect_triangle(ray, hit, triangle, currentMat.ka, currentMat.ks, currentMat.kd);
+         }
+         return (*hit);
+       }
+
+
+       fn light(ray: Ray, hit: HitInfo) -> vec3f {
+         var ka: vec3f = hit.ka; // Ambient reflectance
+         var kd: vec3f = hit.kd; // Diffuse reflectance
+
+         var hitDistanceFromLight = length(lightPos - hit.position);
+
+         var emmissive1 = indices[u32(1)];
+         var emmissiveTriangle1 = Triangle(points[emmissive1.x], points[emmissive1.y], points[emmissive1.z], normals[emmissive1.x], normals[emmissive1.y], normals[emmissive1.z]);
+
+         var emmissive2 = indices[u32(2)];
+         var emmissiveTriangle2 = Triangle(points[emmissive2.x], points[emmissive2.y], points[emmissive2.z], normals[emmissive2.x], normals[emmissive2.y], normals[emmissive2.z]);
+
+         var le = 3.0; //just a random constant
+
+         var contribution1 = dot(hit.normal, -ray.direction)*le*getTriangleArea(emmissiveTriangle1);
+         var contribution2 = dot(hit.normal, -ray.direction)*le*getTriangleArea(emmissiveTriangle2);
+
+         var Ie = contribution1 + contribution2;
+
+         var lightDir = normalize(lightPos - hit.position);
+
+         var diffuse = (1/(hitDistanceFromLight*hitDistanceFromLight))*Ie*(dot(hit.normal, lightDir));
+         diffuse = clamp( diffuse, 0, 1);
+
+         var v = normalize(ray.origin - hit.position);
+
+         return (ka + kd*diffuse);
+       }
+
+       @fragment
+       fn main_fs(@location(0) coords: vec2f) -> @location(0) vec4f {
+
+         let uv = vec2f(coords.x*ASPECT_RATIO*0.5, coords.y*0.5);
+         var ray = get_camera_ray(uv);
+
+         var hit: HitInfo;
+         hit.has_hit = false;
+
+         intersect_with_obj(&ray, &hit);
+         var fragColor = vec3<f32>( 0.9, 0.9, 0.9 );
+
+
+         if (hit.has_hit) {
+           var shadowFactor = 1.0; // start with no shadow value
+           var shadow: Ray;
+           var lightDir = normalize(lightPos - hit.position);
+
+           shadow.direction = normalize(lightDir);
+           shadow.origin = hit.position + hit.normal*0.1;
+           shadow.tmin = 1.0;
+           shadow.tmax = length(lightPos - hit.position)-1.0;
+
+           var hit2: HitInfo;
+           intersect_with_obj(&shadow, &hit2);
+           if ( hit2.has_hit ) {
+             shadowFactor = 0.5;
+           }
+
+           fragColor = light(ray, hit) * shadowFactor;
+         }
+         else {
+           fragColor = bgcolor;
+         }
+         return vec4<f32>(fragColor, 1.0);
+       }
+    </script>
+
+    <style>
+      .container {
+        display: flex;
+        margin: auto;
+      }
+      .textbox {
+        background-color: #cbe7ff; /* Light blue background */
+        border: 2px solid #007bff; /* Blue border */
+        padding: 10px;
+        margin-left: 20px;
+        width: 450px;
+      }
+      h2 {
+        font-size: 24px;
+        color: #007bff; /* Blue text color */
+      }
+      body {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin: 0;
+        padding-top: 20px;
+      }
+      label {
+        font-weight: bold;
+        color: #333;
+      }
+
+      select {
+        width: 100%;
+        padding: 5px;
+        margin: 5px 0;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+      }
+
+      select:focus {
+        outline: none;
+        border-color: #2b07de;
+      }
+    </style>
+  </head>
+
+  <body style="font-family: 'Arial', sans-serif">
+    <div class="container">
+      <canvas id="c" height="512" width="512"> ruh roh </canvas>
+      <div class="textbox">
+        <h2>Part 5 - Triangle Meshes</h2>
+        <p>
+          • Replace the basic lighting approx with the radiometric Le equation.
+        </p>
+      </div>
+    </div>
+  </body>
+</html>

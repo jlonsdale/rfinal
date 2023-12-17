@@ -1,0 +1,104 @@
+<!-- HTML5 doctype declaration -->
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <!-- Include an external JavaScript file (script.js) -->
+    <script type="text/javascript" src="script.js"></script>
+
+    <!-- Define a shader using WGSL in a script tag with the id "wgsl" -->
+    <script id="wgsl" type="x-shader">
+
+      struct VSOut {
+        @builtin(position) position: vec4f,
+        @location(0) coords : vec2f,
+      };
+
+      // Ray structure for ray tracing
+      struct Ray {
+        direction: vec3<f32>
+      };
+
+      // Function to compute camera ray
+      fn get_camera_ray(uv: vec2f) -> Ray
+      {
+        const lookAtPoint = vec3f(0.0, 0.5, 0.0); // '𝐩' in notes
+        const eyePoint = vec3f(2.0,1.5,2.0); // '𝐞' in notes
+        const upVector = vec3f(0.0,1.0,0.0); // 'u' in notes
+
+        let v =  normalize(lookAtPoint-eyePoint);
+        let b1 = normalize(cross(v, upVector));
+        let b2 = (cross(b1, v));
+
+        let q = normalize(uv.x * b1 + uv.y * b2 + v); // using the formula provided to calculate the orthonormal camera basis
+
+        var ray: Ray;
+        ray.direction = q;
+
+        return ray;
+      }
+
+      @vertex
+      fn main_vs(@builtin(vertex_index) VertexIndex : u32) -> VSOut
+      {
+        const pos = array<vec2f, 4>(vec2f(-1.0, 1.0), vec2f(-1.0, -1.0), vec2f(1.0, 1.0), vec2f(1.0, -1.0));
+        var vsOut: VSOut;
+        vsOut.position = vec4f(pos[VertexIndex], 0.0, 1.0);
+        vsOut.coords = pos[VertexIndex];
+        return vsOut;
+      }
+
+      @fragment
+      fn main_fs(@location(0) coords: vec2f) -> @location(0) vec4f
+      {
+        let uv = coords*0.5;
+        var r = get_camera_ray(uv);
+        return vec4f(r.direction*0.5 + 0.5, 1.0); // for color values multiply by 0.5 & add 0.5 to make sure they are positive
+      }
+    </script>
+    <style>
+      .container {
+        display: flex;
+        margin: auto;
+      }
+      .textbox {
+        background-color: #cbe7ff; /* Light blue background */
+        border: 2px solid #007bff; /* Blue border */
+        padding: 10px;
+        margin-left: 20px;
+        width: 450px;
+      }
+      h2 {
+        font-size: 24px;
+        color: #007bff; /* Blue text color */
+      }
+      body {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin: 0;
+        padding-top: 20px;
+      }
+    </style>
+  </head>
+
+  <body style="font-family: 'Arial', sans-serif">
+    <div class="container">
+      <canvas id="c" height="512" width="512"> ruh roh </canvas>
+      <div class="textbox">
+        <h2>Part 3 - Setup a basic WebGPU application.</h2>
+        <p>
+          • Change the vertices of the rectangle to be from (−1.0,−1.0) to
+          (1.0,1.0).
+          <br />
+          • Create a struct (Ray) for holding ray information and generate rays
+          using a pinhole camera model.
+          <br />
+          • Output the ray direction as the pixel color. Multiply by one half
+          and add one half to ensure that you get positive color values.
+          <br />
+        </p>
+      </div>
+    </div>
+  </body>
+</html>

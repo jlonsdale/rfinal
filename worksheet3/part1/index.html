@@ -1,0 +1,123 @@
+<!-- HTML5 doctype declaration -->
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <!-- Include an external JavaScript file (script.js) -->
+    <script type="text/javascript" src="script.js"></script>
+
+    <!-- Define a shader using WGSL in a script tag with the id "wgsl" -->
+    <script id="wgsl" type="x-shader">
+      struct Uniforms {
+        aspect: f32,
+        cam_const: f32,
+      };
+
+      @group(0) @binding(0) var my_sampler: sampler;
+      @group(0) @binding(1) var my_texture: texture_2d<f32>;
+
+      struct VSOut {
+        @builtin(position) position: vec4f,
+        @location(0) coords : vec2f,
+      };
+
+      @vertex
+      fn main_vs(@builtin(vertex_index) VertexIndex : u32) -> VSOut
+      {
+        const pos = array<vec2f, 4>(vec2f(-1.0, 1.0), vec2f(-1.0, -1.0), vec2f(1.0, 1.0), vec2f(1.0, -1.0));
+        var vsOut: VSOut;
+        vsOut.position = vec4f(pos[VertexIndex], 0.0, 1.0);
+        vsOut.coords = pos[VertexIndex];
+        return vsOut;
+      }
+
+      @fragment
+      fn main_fs(@location(0) coords: vec2f) -> @location(0) vec4f
+
+      {
+        return textureSample(my_texture, my_sampler, coords);
+      }
+    </script>
+    <style>
+      .container {
+        display: flex;
+        margin: auto;
+      }
+      .textbox {
+        background-color: #cbe7ff; /* Light blue background */
+        border: 2px solid #007bff; /* Blue border */
+        padding: 10px;
+        margin-left: 20px;
+        width: 450px;
+      }
+      h2 {
+        font-size: 24px;
+        color: #007bff; /* Blue text color */
+      }
+      body {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin: 0;
+        padding-top: 20px;
+      }
+      label {
+        font-weight: bold;
+        color: #333;
+      }
+
+      select {
+        width: 100%;
+        padding: 5px;
+        margin: 5px 0;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+      }
+
+      select:focus {
+        outline: none;
+        border-color: #2b07de;
+      }
+    </style>
+  </head>
+
+  <body style="font-family: 'Arial', sans-serif">
+    <div class="container">
+      <canvas id="c" height="512" width="512"> ruh roh </canvas>
+      <div class="textbox">
+        <h2>Part 1</h2>
+        <p>
+          • Create a function that loads a texture image file using the HTML img
+          element and copies the image data into a Uint8Array using the HTML
+          canvas element.
+          <br />
+          • Once loaded, store the image data in a texture created on the GPU
+          and create a sampler with uv address modes as well as minification and
+          magnification filters.
+          <br />
+          • Use image plane coordinates (uv) to render images of the texture
+          with clamp-to-edge address modes versus repeat address modes and with
+          nearest filtering versus linear filtering.
+          <br />
+        </p>
+        <div>
+          <label for="wrapMode">Texture Wrapping Mode:</label>
+          <select id="wrapMode">
+            <option value="repeat">Repeat</option>
+            <option value="clamp-to-edge">Clamp to Edge</option>
+          </select>
+        </div>
+        <div>
+          <label for="filterMode">Texture Filtering Mode:</label>
+          <select id="filterMode">
+            <option value="nearest">Nearest</option>
+            <option value="linear">Linear</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <img id="texImage" src="../grass.jpg" hidden="" />
+
+    <canvas id="canvas" style="display: none"></canvas>
+  </body>
+</html>
