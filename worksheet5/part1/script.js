@@ -21,7 +21,7 @@ async function main() {
 
   const objDoc = new OBJDoc("cat");
   try {
-    const response = await fetch("../Cat.obj");
+    const response = await fetch("../../common/objects/Cat.obj");
     if (response.ok) {
       const text = await response.text();
       const scale = 0.01;

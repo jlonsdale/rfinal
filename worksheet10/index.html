@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Centered Images with Larger Captions</title>
+    <style>
+      body {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        margin: 0;
+      }
+
+      .image-container {
+        text-align: center;
+      }
+
+      .image-caption {
+        margin-top: 10px; /* Add space between the image and its caption */
+        font-size: 24px; /* Set the desired font size here */
+      }
+    </style>
+  </head>
+  <body>
+    <div class="image-container">
+      <div class="image-caption">
+        <img src="../common/blender2.PNG" alt="Blender 2" />
+        <p>Glass sphere and cube, mirror sphere and cube.</p>
+      </div>
+      <div class="image-caption">
+        <img src="../common/blender3.PNG" alt="Blender 3" />
+        <p style="font-size: 32px">
+            <div class="material-container">
+                <div class="material-description">
+                  <strong>Material 1:</strong> This material resembles a less reflective metal. I increased the roughness, making it less like a mirror and added a distinct color to it. It now exhibits a more subdued and diffuse reflection.
+                </div>
+                <div class="material-description">
+                  <strong>Material 2:</strong> Material 2 simulates concrete, and it is exceptionally matte with maximum roughness. This means it has a very dull and non-reflective surface. I also made it grey to match real concrete.
+                </div>
+                <div class="material-description">
+                  <strong>Material 3:</strong> Material 3 mimics sea glass, similar to regular glass but with some extra roughness. This additional roughness gives it a unique texture, making it appear as if it has been weathered by the ocean, resulting in subtle imperfections on the surface.
+                </div>
+        </p>
+      </div>
+    </div>
+  </body>
+</html>

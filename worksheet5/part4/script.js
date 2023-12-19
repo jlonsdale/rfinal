@@ -19,9 +19,11 @@ async function main() {
     code: document.getElementById("wgsl").text,
   });
 
-  const objDoc = new OBJDoc("../objects/CornellBoxWithBlocks.obj");
+  const objDoc = new OBJDoc("../../common/objects/CornellBoxWithBlocks.obj");
   try {
-    const response = await fetch("../objects/CornellBoxWithBlocks.obj");
+    const response = await fetch(
+      "../../common/objects/CornellBoxWithBlocks.obj"
+    );
     if (response.ok) {
       const text = await response.text();
       const scale = 1;
